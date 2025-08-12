@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Project Manager SPA</title>
+  <style>
+    :root{
+      --bg:#f7f6fb;
+      --card:#ffffff;
+      --accent:#6b21a8; /* purple */
+      --muted:#6b6b6b;
+      --glass: rgba(255,255,255,0.7);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:linear-gradient(180deg,#fbfbff,var(--bg));color:#111;font-size:15px}
+    header{background:var(--card);display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #eee}
+    header h1{margin:0;font-size:18px;color:var(--accent)}
+    .container{max-width:1100px;margin:20px auto;padding:12px}
+
+    /* Layout */
+    .grid{display:grid;grid-template-columns:1fr 380px;gap:18px}
+    .card{background:var(--card);border-radius:12px;padding:14px;box-shadow:0 6px 18px rgba(100,80,120,0.06)}
+
+    /* Calendar */
+    .cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+    .cal-controls{display:flex;gap:8px;align-items:center}
+    .btn{background:var(--accent);color:white;padding:8px 12px;border-radius:8px;border:none;cursor:pointer}
+    .btn.secondary{background:transparent;color:var(--accent);border:1px solid rgba(107,33,168,0.12)}
+    .month{font-weight:600}
+    .calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+    .weekday{padding:8px;text-align:center;font-size:13px;color:var(--muted)}
+    .day{min-height:80px;padding:8px;border-radius:8px;background:linear-gradient(180deg,rgba(250,250,255,0.9),white);display:flex;flex-direction:column}
+    .day .num{font-weight:600}
+
+    /* Side: projects list */
+    .projects-list{max-height:600px;overflow:auto;margin-top:8px}
+    .project-item{padding:10px;border-radius:8px;border:1px solid #f0e9ff;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between}
+    .project-item .meta{font-size:13px;color:var(--muted)}
+
+    /* Project manager modal / page */
+    .overlay{position:fixed;inset:0;background:rgba(0,0,0,0.35);display:none;align-items:center;justify-content:center;padding:20px}
+    .overlay.show{display:flex}
+    .panel{width:100%;max-width:980px;background:var(--card);border-radius:12px;padding:16px;max-height:90vh;overflow:auto}
+    .form-row{display:flex;gap:12px;margin-bottom:10px}
+    .form-row .col{flex:1}
+    label{display:block;font-size:13px;margin-bottom:6px;color:var(--muted)}
+    input[type=text], textarea, input[type=number], input[type=date]{width:100%;padding:8px;border-radius:8px;border:1px solid #e6e6e6}
+    textarea{min-height:80px}
+    .dates-list{margin-top:8px;border-top:1px dashed #eee;padding-top:8px}
+    .date-row{display:flex;gap:8px;margin-bottom:8px;align-items:center}
+    .date-row input[type=date]{width:180px}
+    .date-row textarea{width:220px}
+    .small{font-size:13px;color:var(--muted)}
+    .muted-block{background:#fbf8ff;padding:8px;border-radius:8px;border:1px solid #f1e9ff}
+
+    .actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+
+    /* responsive */
+    @media (max-width:900px){.grid{grid-template-columns:1fr}
+      .projects-list{max-height:300px}
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Project Manager SPA</h1>
+    <div>
+      <button id="manageBtn" class="btn">Manage Projects</button>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="grid">
+      <div class="card">
+        <div class="cal-header">
+          <div>
+            <div class="month" id="monthLabel">June 2025</div>
+            <div class="small" id="todayLabel"></div>
+          </div>
+          <div class="cal-controls">
+            <button id="prevMonth" class="btn secondary">◀</button>
+            <button id="nextMonth" class="btn secondary">▶</button>
+          </div>
+        </div>
+        <div class="calendar" id="calendar">
+          <!-- Weekdays -->
+        </div>
+      </div>
+
+      <aside class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <h3 style="margin:0">Saved Projects</h3>
+          <button id="addProjectBtn" class="btn">+ New</button>
+        </div>
+        <div class="projects-list" id="projectsList"></div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- Project manager overlay -->
+  <div class="overlay" id="overlay">
+    <div class="panel">
+      <h2 id="panelTitle">Project Form</h2>
+      <div style="margin-top:8px" class="muted-block">
+        <div class="form-row">
+          <div class="col">
+            <label for="projectName">Project name</label>
+            <input type="text" id="projectName" placeholder="Enter project name">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="col">
+            <label for="projectDesc">Project description</label>
+            <textarea id="projectDesc" placeholder="Describe the project..."></textarea>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="col">
+            <label for="orderVolume">Order volume (kg)</label>
+            <input type="number" id="orderVolume" min="0" placeholder="kg">
+          </div>
+        </div>
+
+        <div style="margin-top:12px">
+          <strong>Project dates (max 10)</strong>
+          <div class="small">Each date has a note and a "Register date" button. After registering a date, its inputs become disabled.</div>
+
+          <div style="margin-top:8px;display:flex;gap:8px;align-items:center;">
+            <label style="margin:0">Select first/start date:</label>
+            <input type="date" id="startDate">
+            <button id="addStartingDate" class="btn secondary">Set as first date</button>
+          </div>
+
+          <div style="margin-top:8px;display:flex;gap:8px;align-items:center;">
+            <label style="margin:0">Add next date by days:</label>
+            <input type="number" id="daysToAdd" min="1" placeholder="days">
+            <button id="addByDays" class="btn secondary">Add date</button>
+          </div>
+
+          <div class="dates-list" id="datesList"></div>
+
+          <div style="margin-top:10px;display:flex;gap:8px;align-items:center;">
+            <button id="finalizeDates" class="btn">Finalize Dates</button>
+            <div id="endDateDisplay" style="margin-left:12px;align-self:center"></div>
+          </div>
+        </div>
+
+        <div style="margin-top:12px">
+          <h4>Sales (placeholder)</h4>
+          <button id="salesTableBtn" class="btn secondary">Open Sales Table</button>
+        </div>
+
+        <div class="actions">
+          <button id="saveProject" class="btn">Save Project</button>
+          <button id="editProject" class="btn secondary">Edit</button>
+          <button id="closePanel" class="btn secondary">Back</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sales table modal (placeholder) -->
+  <div class="overlay" id="salesOverlay">
+    <div class="panel">
+      <h3>Sales Table (placeholder)</h3>
+      <p class="small">You can implement the sales table logic later. For now it's a placeholder.</p>
+      <div class="actions"><button id="closeSales" class="btn">Close</button></div>
+    </div>
+  </div>
+
+  <script>
+    // --- Utilities ---
+    function qs(id){return document.getElementById(id)}
+
+    // Simple Jalali (Persian) conversion (algorithmic) — returns YYYY-MM-DD
+    // Source: adapted from common algorithms (no external libs)
+    function gregorianToJalali(gy, gm, gd){
+      var g_d_m=[0,31,59,90,120,151,181,212,243,273,304,334];
+      var jy;
+      var gy2= (gm>2)?(gy+1):gy;
+      var days = 355666 + (365*gy) + Math.floor((gy2+3)/4) - Math.floor((gy2+99)/100) + Math.floor((gy2+399)/400) + gd + g_d_m[gm-1];
+      jy = -1595 + (33*Math.floor(days/12053));
+      days = days % 12053;
+      jy += 4*Math.floor(days/1461);
+      days %= 1461;
+      if(days > 365){
+        jy += Math.floor((days-1)/365);
+        days = (days-1) % 365;
+      }
+      var jm = (days < 186) ? 1 + Math.floor(days/31) : 7 + Math.floor((days-186)/30);
+      var jd = 1 + ((days < 186) ? (days % 31) : ((days-186) % 30));
+      return `${jy.toString().padStart(4,'0')}-${jm.toString().padStart(2,'0')}-${jd.toString().padStart(2,'0')}`;
+    }
+
+    function toISODate(d){ // Date -> YYYY-MM-DD
+      const y=d.getFullYear(), m=(d.getMonth()+1).toString().padStart(2,'0'), day=(d.getDate()).toString().padStart(2,'0');
+      return `${y}-${m}-${day}`;
+    }
+
+    // --- Calendar ---
+    const calendarEl = qs('calendar');
+    const monthLabel = qs('monthLabel');
+    const todayLabel = qs('todayLabel');
+    let viewDate = new Date();
+
+    function renderCalendar(){
+      calendarEl.innerHTML='';
+      const start = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
+      const end = new Date(viewDate.getFullYear(), viewDate.getMonth()+1, 0);
+      const weekdays = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+      weekdays.forEach(w=>{const el=document.createElement('div');el.className='weekday';el.textContent=w;calendarEl.appendChild(el)});
+
+      const firstWeekday = start.getDay();
+      for(let i=0;i<firstWeekday;i++){const spacer=document.createElement('div');spacer.className='day';spacer.style.opacity='0';calendarEl.appendChild(spacer)}
+
+      for(let d=1; d<=end.getDate(); d++){
+        const day = document.createElement('div');day.className='day';
+        const num = document.createElement('div');num.className='num';num.textContent=d;
+        day.appendChild(num);
+        calendarEl.appendChild(day);
+      }
+      monthLabel.textContent = viewDate.toLocaleString('en-US',{month:'long', year:'numeric'});
+      const today = new Date();
+      todayLabel.textContent = `Today: ${today.toLocaleDateString('en-GB')} `;
+    }
+
+    qs('prevMonth').addEventListener('click', ()=>{viewDate=new Date(viewDate.getFullYear(), viewDate.getMonth()-1,1);renderCalendar()});
+    qs('nextMonth').addEventListener('click', ()=>{viewDate=new Date(viewDate.getFullYear(), viewDate.getMonth()+1,1);renderCalendar()});
+    renderCalendar();
+
+    // --- Projects storage ---
+    const STORAGE_KEY = 'pm_spa_projects_v1';
+    function loadProjects(){
+      try{const raw=localStorage.getItem(STORAGE_KEY);return raw?JSON.parse(raw):[];}catch(e){return[]}
+    }
+    function saveProjects(list){localStorage.setItem(STORAGE_KEY, JSON.stringify(list));}
+
+    let projects = loadProjects();
+    const projectsListEl = qs('projectsList');
+
+    function refreshProjectsList(){
+      projectsListEl.innerHTML='';
+      if(projects.length===0){projectsListEl.innerHTML='<div class="small">No projects yet</div>';return}
+      projects.forEach((p, idx)=>{
+        const it = document.createElement('div');it.className='project-item';
+        const left = document.createElement('div');
+        left.innerHTML = `<div style="font-weight:600">${p.name}</div><div class="meta">${p.desc?p.desc.slice(0,60):''}</div>`;
+        const right = document.createElement('div');
+        const openBtn = document.createElement('button');openBtn.className='btn secondary';openBtn.textContent='Open';openBtn.addEventListener('click', ()=>openProject(idx));
+        right.appendChild(openBtn);
+        it.appendChild(left);it.appendChild(right);
+        projectsListEl.appendChild(it);
+      })
+    }
+    refreshProjectsList();
+
+    // --- Overlay behavior ---
+    const overlay = qs('overlay');
+    const panelTitle = qs('panelTitle');
+    let editingIndex = null;
+
+    function openPanel(){overlay.classList.add('show')}
+    function closePanel(){overlay.classList.remove('show');clearForm();}
+
+    qs('manageBtn').addEventListener('click', ()=>{panelTitle.textContent='Project Manager';openPanel();});
+    qs('addProjectBtn').addEventListener('click', ()=>{openNewProjectForm()});
+    qs('closePanel').addEventListener('click', ()=>{closePanel()});
+
+    // --- Form logic ---
+    const datesListEl = qs('datesList');
+    let dates = []; // {date: 'YYYY-MM-DD', note:'', registered:bool}
+
+    function clearForm(){qs('projectName').value='';qs('projectDesc').value='';qs('orderVolume').value='';qs('startDate').value='';dates=[];renderDates();qs('endDateDisplay').innerHTML='';editingIndex=null}
+
+    function renderDates(){
+      datesListEl.innerHTML='';
+      dates.forEach((d, i)=>{
+        const row = document.createElement('div');row.className='date-row';
+        const dateIn = document.createElement('input');dateIn.type='date';dateIn.value=d.date||'';dateIn.disabled = !!d.registered;
+        const note = document.createElement('textarea');note.placeholder='note';note.value=d.note||'';note.disabled = !!d.registered;note.style.height='46px';
+        const regBtn = document.createElement('button');regBtn.className='btn secondary';regBtn.textContent = d.registered? 'Registered':'Register date';
+        regBtn.addEventListener('click', ()=>{
+          if(!d.date){alert('Choose a date first');return}
+          if(!d.note || d.note.trim()===''){alert('Please fill the note before registering');return}
+          d.registered = true;renderDates();});
+        const endBtn = document.createElement('button');endBtn.className='btn secondary';endBtn.textContent='Set as project end';
+        endBtn.addEventListener('click', ()=>{
+          if(!d.date){alert('choose date');return}
+          // mark end date and finalize
+          finalizeWithEnd(d.date);
+        });
+        const removeBtn = document.createElement('button');removeBtn.className='btn secondary';removeBtn.textContent='Remove';
+        removeBtn.addEventListener('click', ()=>{dates.splice(i,1);renderDates()});
+
+        // wire inputs to data
+        dateIn.addEventListener('change',(e)=>{d.date=e.target.value});
+        note.addEventListener('input',(e)=>{d.note=e.target.value});
+
+        row.appendChild(dateIn);row.appendChild(note);row.appendChild(regBtn);row.appendChild(endBtn);row.appendChild(removeBtn);
+        datesListEl.appendChild(row);
+      })
+    }
+
+    qs('addStartingDate').addEventListener('click', ()=>{
+      const v = qs('startDate').value; if(!v){alert('Choose a start date');return}
+      if(dates.length>=10){alert('Max 10 dates');return}
+      dates.push({date:v,note:'',registered:false});renderDates();
+    })
+
+    qs('addByDays').addEventListener('click', ()=>{
+      const days = parseInt(qs('daysToAdd').value,10);
+      if(!days || isNaN(days) || days<1){alert('Enter positive days');return}
+      if(dates.length===0){alert('Set the start date first');return}
+      if(dates.length>=10){alert('Max 10 dates');return}
+      // compute from last date
+      const last = dates[dates.length-1].date;
+      if(!last){alert('Last date is empty');return}
+      const lastD = new Date(last);
+      const next = new Date(lastD.getFullYear(), lastD.getMonth(), lastD.getDate()+days);
+      dates.push({date: toISODate(next), note:'', registered:false});renderDates();
+    })
+
+    qs('finalizeDates').addEventListener('click', ()=>{
+      // compute final date as last registered or last date
+      if(dates.length===0){alert('No dates');return}
+      const last = dates[dates.length-1].date;
+      if(!last){alert('Last date is empty');return}
+      const d = new Date(last);
+      const gy=d.getFullYear(), gm=d.getMonth()+1, gd=d.getDate();
+      const jal = gregorianToJalali(gy,gm,gd);
+      qs('endDateDisplay').innerHTML = `<div>End date (Gregorian): <strong>${toISODate(d)}</strong></div><div>End date (Jalali): <strong>${jal}</strong></div>`;
+    })
+
+    function finalizeWithEnd(endDate){
+      const d = new Date(endDate);
+      const jal = gregorianToJalali(d.getFullYear(), d.getMonth()+1, d.getDate());
+      qs('endDateDisplay').innerHTML = `<div>End date (Gregorian): <strong>${toISODate(d)}</strong></div><div>End date (Jalali): <strong>${jal}</strong></div>`;
+    }
+
+    // Save project
+    qs('saveProject').addEventListener('click', ()=>{
+      const name = qs('projectName').value.trim();
+      if(!name){alert('Project name required');return}
+      const project = {
+        name,
+        desc: qs('projectDesc').value.trim(),
+        volume: qs('orderVolume').value || '',
+        dates: JSON.parse(JSON.stringify(dates)),
+        savedAt: new Date().toISOString()
+      };
+      if(editingIndex!==null){projects[editingIndex]=project}else{projects.push(project)}
+      saveProjects(projects);refreshProjectsList();closePanel();
+    })
+
+    qs('editProject').addEventListener('click', ()=>{
+      // enable editing of registered dates
+      dates.forEach(d=>d.registered=false);renderDates();
+    })
+
+    qs('salesTableBtn').addEventListener('click', ()=>{qs('salesOverlay').classList.add('show')});
+    qs('closeSales').addEventListener('click', ()=>{qs('salesOverlay').classList.remove('show')});
+
+    // open existing project
+    function openProject(index){
+      const p = projects[index];
+      editingIndex = index;
+      panelTitle.textContent = `Edit: ${p.name}`;
+      qs('projectName').value = p.name;
+      qs('projectDesc').value = p.desc || '';
+      qs('orderVolume').value = p.volume || '';
+      dates = JSON.parse(JSON.stringify(p.dates || []));
+      renderDates();
+      openPanel();
+    }
+
+    function openNewProjectForm(){
+      editingIndex = null;panelTitle.textContent='New project';clearForm();openPanel();
+    }
+
+    // load sample if none (optional) - commented out
+    // if(projects.length===0){projects.push({name:'Demo',desc:'Demo project',volume:'100',dates:[]}); saveProjects(projects); refreshProjectsList();}
+
+    // quick UI: clicking outside panel closes it
+    document.addEventListener('click',(e)=>{
+      if(e.target.classList && e.target.classList.contains('overlay')){
+        //closePanel(); // keep explicit Back button
+      }
+    });
+
+    // initial set
+    refreshProjectsList();
+  </script>
+</body>
+</html>
